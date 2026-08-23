@@ -1,0 +1,47 @@
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postcard
+      POSTGRES_USER: postcard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postcard_database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postcard -d postcard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      PORT: 4173
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
+      DATABASE_URL: postgres://postcard:${POSTGRES_PASSWORD}@database:5432/postcard
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+    ports:
+      - "127.0.0.1:4173:4173"
+
+  bot:
+    build: .
+    restart: unless-stopped
+    command: ["node", "bot.mjs"]
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
+      DATABASE_URL: postgres://postcard:${POSTGRES_PASSWORD}@database:5432/postcard
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+
+volumes:
+  postcard_database:
